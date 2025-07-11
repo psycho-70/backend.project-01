@@ -23,8 +23,8 @@ app.get("/", (req, res) => {
 // Error handling middleware
 app.use(cors({
   origin: [
-    'http://localhost:3000',
-    'https://vercel.com/furqan-khans-projects/backend.project-01'
+    'https://informativeworld-furqan-khans-projects.vercel.app/',
+    'https://backend-project-01-two.vercel.app/'
   ],
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   credentials: true
