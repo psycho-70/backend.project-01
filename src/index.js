@@ -21,13 +21,14 @@ app.get("/", (req, res) => {
 });
 
 // Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    error: "Internal Server Error",
-    message: err.message 
-  });
-});
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://vercel.com/furqan-khans-projects/backend.project-01'
+  ],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  credentials: true
+}));
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
