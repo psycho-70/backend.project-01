@@ -2,12 +2,24 @@ import express from "express";
 import cors from "cors";
 import contactRoutes from "./routes/contactRoute.js";
 import { config } from "dotenv";
-
+import bodyParser from "body-parser";
 config(); // Load .env variables
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+// Body Parser Middleware
+app.use(bodyParser.json());
 
+// CORS Middleware
+app.use(cors({
+  origin: 'https://weatherapp-lilac-xi.vercel.app', // Your frontend URL
+  methods: ['GET', 'POST', 'DELETE'],
+  allowedHeaders: ['Content-Type'],
+  optionsSuccessStatus: 200, // For legacy browser support
+}));
+
+// Handle OPTIONS requests for CORS preflight
+app.options('*', cors());
 // Middleware
 app.use(cors());
 app.use(express.json());
