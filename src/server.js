@@ -12,7 +12,7 @@ app.use(bodyParser.json());
 
 // CORS Middleware
 app.use(cors({
-  origin: 'https://weatherapp-lilac-xi.vercel.app', // Your frontend URL
+  origin: 'https://informativeworld-furqan-khans-projects.vercel.app/', // Your frontend URL
   methods: ['GET', 'POST', 'DELETE'],
   allowedHeaders: ['Content-Type'],
   optionsSuccessStatus: 200, // For legacy browser support
