@@ -12,7 +12,8 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://informativeworld-furqan-khans-projects.vercel.app' // Remove trailing slash
+    'https://informativeworld-furqan-khans-projects.vercel.app',
+    'https://backendproject11-fsquxsgki-furqan-khans-projects.vercel.app' // Add your actual backend URL
   ],
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   credentials: true
@@ -30,10 +31,10 @@ app.get("/", (req, res) => {
 });
 
 // Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
-});
+// app.use((err, req, res, next) => {
+//   console.error(err.stack);
+//   res.status(500).send('Something broke!');
+// });
 
 // For local development
 if (process.env.NODE_ENV !== 'production') {
