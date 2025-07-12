@@ -23,7 +23,7 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
-app.use("/api/contacts", contactRoutes);
+app.use("/api", contactRoutes);
 
 // Health check endpoint
 app.get("/", (req, res) => {
