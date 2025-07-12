@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://informativeworld-furqan-khans-projects.vercel.app/' // Replace with your actual frontend URL
+    'https://informativeworld-furqan-khans-projects.vercel.app' // Remove trailing slash
   ],
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   credentials: true
@@ -29,12 +29,18 @@ app.get("/", (req, res) => {
   res.send("Portfolio Backend is running");
 });
 
-// Error handling middleware (should handle errors, not CORS)
+// Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).send('Something broke!');
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+// Export for Vercel
+export default app;
