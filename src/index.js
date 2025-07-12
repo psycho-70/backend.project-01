@@ -16,7 +16,7 @@ app.use(cors({
     'https://backendproject11-fsquxsgki-furqan-khans-projects.vercel.app' // Add your actual backend URL
   ],
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-  credentials: true
+  credentials: false
 }));
 
 // Middleware
