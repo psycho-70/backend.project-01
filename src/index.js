@@ -16,14 +16,14 @@ app.use(cors({
     'https://backendproject11-fsquxsgki-furqan-khans-projects.vercel.app' // Add your actual backend URL
   ],
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-  credentials: false
+  credentials: true
 }));
 
 // Middleware
 app.use(express.json());
 
 // Routes
-app.use("/api", contactRoutes);
+app.use("/api/contacts", contactRoutes);
 
 // Health check endpoint
 app.get("/", (req, res) => {
