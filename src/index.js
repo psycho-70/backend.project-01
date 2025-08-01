@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import contactRoutes from "./routes/contactRoute.js";
 import { config } from "dotenv";
-
+import chatRoutes from "./routes/chatRoute.js";
 config(); // Load .env variables
 
 const app = express();
@@ -14,7 +14,9 @@ app.use(cors({
     'http://localhost:3000',
     'https://informathiveworld-furqan-khans-projects.vercel.app',
     'https://furqankhattak.vercel.app',
-    'https://backendproject11-fsquxsgki-furqan-khans-projects.vercel.app' // Add your actual backend URL
+    'https://backendproject11-fsquxsgki-furqan-khans-projects.vercel.app', // Add your actual backend URL
+      'https://backendproject-01.vercel.app' // Add this if needed
+
   ],
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   credentials: true
@@ -25,7 +27,7 @@ app.use(express.json());
 
 // Routes
 app.use("/api/contacts", contactRoutes);
-
+app.use("/api/chat", chatRoutes);
 // Health check endpoint
 app.get("/", (req, res) => {
   res.send("Portfolio Backend is running");
