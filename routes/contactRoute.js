@@ -6,10 +6,11 @@ const router = express.Router();
 // POST /api/contacts - Submit contact form
 router.post("/", async (req, res) => {
   try {
-    const { name, email, comment } = req.body;
+    const { name, email, comment, message, subject } = req.body;
+    const finalComment = comment || message;
 
     // Basic validation
-    if (!name || !email || !comment) {
+    if (!name || !email || !finalComment) {
       return res.status(400).json({ 
         error: "Name, email and comment are required",
         received: { name, email, comment }
@@ -20,7 +21,9 @@ router.post("/", async (req, res) => {
     const docRef = await contactsCollection.add({
       name,
       email,
-      comment,
+      subject: subject || "General Inquiry",
+      comment: finalComment,
+      message: finalComment,
       likes: 0,
       likedBy: [],
       createdAt: new Date().toISOString()
@@ -30,10 +33,12 @@ router.post("/", async (req, res) => {
       id: docRef.id,
       name,
       email,
-      comment,
+      subject: subject || "General Inquiry",
+      comment: finalComment,
+      message: finalComment,
       likes: 0,
       createdAt: new Date().toISOString(),
-      message: "Comment submitted successfully"
+      statusMessage: "Comment submitted successfully"
     });
   } catch (error) {
     console.error("Error submitting contact:", error);
@@ -101,6 +106,21 @@ router.patch("/:id/like", async (req, res) => {
     console.error("Error liking comment:", error);
     res.status(500).json({ 
       error: "Failed to like comment",
+      details: error.message 
+    });
+  }
+});
+
+// DELETE /api/contacts/:id - Delete a contact message
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await contactsCollection.doc(id).delete();
+    res.status(200).json({ message: "Contact deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting contact:", error);
+    res.status(500).json({ 
+      error: "Failed to delete contact", 
       details: error.message 
     });
   }
