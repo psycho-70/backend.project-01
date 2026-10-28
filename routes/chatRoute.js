@@ -7,7 +7,6 @@ dotenv.config();
 const router = express.Router();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Your personal information from CV (structured for easy reference)
 const personalInfo = {
   name: "Furqan Ullah",
   contact: {
