@@ -22,7 +22,32 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage: storage });
+// Frontends commonly submit a single file as `image`, while project forms
+// may submit several as `images` (or `images[]`). Accept all three names.
+const upload = multer({
+    storage,
+    limits: { files: 10, fileSize: 5 * 1024 * 1024 },
+});
+
+const projectImageUpload = (req, res, next) => {
+    upload.fields([
+        { name: "images", maxCount: 10 },
+        { name: "image", maxCount: 10 },
+        { name: "images[]", maxCount: 10 },
+    ])(req, res, (error) => {
+        if (!error) return next();
+        if (error instanceof multer.MulterError) {
+            return res.status(400).json({ error: error.message, code: error.code });
+        }
+        return res.status(400).json({ error: error.message || "Unable to process uploaded image" });
+    });
+};
+
+const getProjectImageFiles = (req) => [
+    ...(req.files?.images || []),
+    ...(req.files?.image || []),
+    ...(req.files?.["images[]"] || []),
+];
 
 // GET /api/admin/projects - Get all projects (Admin)
 router.get("/projects", verifyToken, async (req, res) => {
@@ -36,10 +61,10 @@ router.get("/projects", verifyToken, async (req, res) => {
 });
 
 // POST /api/admin/projects - Add new project with multiple images
-router.post("/projects", verifyToken, upload.array("images", 10), async (req, res) => {
+router.post("/projects", verifyToken, projectImageUpload, async (req, res) => {
     try {
         const { title, description, link, category, github, longDescription, technologies } = req.body;
-        const imageFiles = req.files ? req.files.map(file => file.filename) : [];
+        const imageFiles = getProjectImageFiles(req).map(file => file.filename);
 
         const projectData = {
             title,
@@ -61,13 +86,14 @@ router.post("/projects", verifyToken, upload.array("images", 10), async (req, re
 });
 
 // Update project with optional multiple images
-router.patch("/projects/:id", verifyToken, upload.array("images", 10), async (req, res) => {
+router.patch("/projects/:id", verifyToken, projectImageUpload, async (req, res) => {
     try {
         const updates = { ...req.body };
         if (updates.technologies) updates.technologies = JSON.parse(updates.technologies);
 
-        if (req.files && req.files.length > 0) {
-            const newImages = req.files.map(file => file.filename);
+        const uploadedImages = getProjectImageFiles(req);
+        if (uploadedImages.length > 0) {
+            const newImages = uploadedImages.map(file => file.filename);
             // If the user wants to REPLACE all images, we just use newImages.
             // If they want to APPEND, we'd need current data first.
             // For simplicity, we'll replace or handle according to a flag.
