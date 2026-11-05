@@ -6,6 +6,7 @@ import contactRoutes from "./routes/contactRoute.js";
 import authRoutes from "./routes/authRoute.js";
 import adminRoutes from "./routes/adminRoute.js";
 import chatRoutes from "./routes/chatRoute.js";
+import chatbotRoutes from "./routes/chatbotRoute.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -33,6 +34,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/contacts", contactRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/chatbot", chatbotRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 
