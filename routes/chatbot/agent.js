@@ -11,7 +11,8 @@ export const isChatbotConfigured = () => Boolean(process.env.GROQ_API_KEY);
 
 export function createPortfolioAgent() {
     const tools = makePortfolioTools();
-    const toolNode = new ToolNode(tools);
+    // Bad tool args become a message the model can recover from instead of a 500.
+    const toolNode = new ToolNode(tools, { handleToolErrors: true });
 
     const model = new ChatGroq({
         apiKey: process.env.GROQ_API_KEY,

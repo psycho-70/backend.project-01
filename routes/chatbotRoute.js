@@ -1,5 +1,7 @@
 import express from "express";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { ChatGroq } from "@langchain/groq";
+import { db } from "../config/firebase.config.js";
 import {
     CHATBOT_MODEL,
     createPortfolioAgent,
@@ -13,7 +15,78 @@ const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY = 8;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 25;
+const REQUEST_TIMEOUT_MS = Number(process.env.CHATBOT_TIMEOUT_MS) || 20_000;
+const DEBUG = process.env.CHATBOT_DEBUG === "true";
 const hits = new Map();
+
+const withTimeout = async (promise, ms) => {
+    let timer;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise((_, reject) => {
+                timer = setTimeout(
+                    () => reject(Object.assign(new Error("Chatbot request timed out"), { code: "chatbot_timeout" })),
+                    ms
+                );
+            }),
+        ]);
+    } finally {
+        clearTimeout(timer);
+    }
+};
+
+// Maps the underlying failure to a safe, actionable payload for the client.
+const classifyError = (error) => {
+    const raw = String(error?.message || error || "");
+    const text = `${error?.code ?? ""} ${error?.status ?? ""} ${raw}`;
+
+    if (error?.code === "chatbot_timeout" || /timed out|timeout/i.test(text)) {
+        return { status: 504, code: "timeout", error: "The assistant took too long to answer. Please try again." };
+    }
+    if (/429|rate_limit|rate limit|tokens per minute|quota/i.test(text)) {
+        return {
+            status: 429,
+            code: "rate_limit",
+            error: "The assistant is handling a lot of requests right now. Please try again in a few seconds.",
+        };
+    }
+    if (/401|403|invalid api key|invalid_api_key|unauthorized|forbidden/i.test(text)) {
+        return {
+            status: 502,
+            code: "groq_auth",
+            error: "The chatbot's model API key was rejected. Update GROQ_API_KEY in the backend environment.",
+        };
+    }
+    if (/tool_use_failed|tool call validation|failed_generation|did not match schema|invalid tool/i.test(text)) {
+        return {
+            status: 502,
+            code: "tool_call_invalid",
+            error: "The assistant had trouble selecting portfolio data. Please rephrase, or ask about one topic at a time.",
+        };
+    }
+    if (/firebase|firestore|permission_denied|permission denied|unavailable|credentials|service account/i.test(text)) {
+        return {
+            status: 502,
+            code: "database",
+            error: "The portfolio database is temporarily unavailable. Please try again shortly.",
+        };
+    }
+    if (/enotfound|econnreset|econnrefused|fetch failed|network|socket/i.test(text)) {
+        return {
+            status: 502,
+            code: "provider_unreachable",
+            error: "The assistant could not reach its model provider. Please try again in a moment.",
+        };
+    }
+    return { status: 502, code: "assistant_error", error: "The assistant is temporarily unavailable. Please try again in a moment." };
+};
+
+const sanitize = (value) =>
+    String(value || "")
+        .replace(/org_[A-Za-z0-9]+/g, "org_***")
+        .replace(/gsk_[A-Za-z0-9]+/g, "gsk_***")
+        .slice(0, 220);
 
 const isRateLimited = (ip) => {
     const now = Date.now();
@@ -99,9 +172,9 @@ router.post("/", async (req, res) => {
 
     try {
         const agent = createPortfolioAgent();
-        const result = await agent.invoke(
-            { messages: normalizeHistory(messages, latest) },
-            { recursionLimit: 12 }
+        const result = await withTimeout(
+            agent.invoke({ messages: normalizeHistory(messages, latest) }, { recursionLimit: 12 }),
+            REQUEST_TIMEOUT_MS
         );
 
         const finalMessage = [...result.messages]
@@ -132,16 +205,67 @@ router.post("/", async (req, res) => {
             toolsUsed,
         });
     } catch (error) {
-        console.error("Chatbot error:", error?.message || error);
-        const message = String(error?.message || "");
-        const friendly = /401|invalid api key|unauthorized/i.test(message)
-            ? "The chatbot API key is invalid. Update GROQ_API_KEY in the backend .env file."
-            : /429|rate limit|tokens per minute|rate_limit_exceeded/i.test(message)
-            ? "The assistant is handling a lot of requests right now. Please try again in a few seconds."
-            : "The assistant is temporarily unavailable. Please try again in a moment.";
-
-        res.status(502).json({ success: false, error: friendly });
+        console.error("Chatbot error:", error?.code || "", error?.message || error);
+        const { status, code, error: friendly } = classifyError(error);
+        res.status(status).json({
+            success: false,
+            code,
+            error: friendly,
+            ...(DEBUG ? { detail: sanitize(error?.message || error) } : {}),
+        });
     }
+});
+
+// GET /api/chatbot/diagnose - checks the two things that break in production:
+// Firestore access and the Groq key/model. Returns codes only, never secrets.
+router.get("/diagnose", async (req, res) => {
+    const started = Date.now();
+    const report = {
+        success: true,
+        configured: isChatbotConfigured(),
+        model: CHATBOT_MODEL(),
+        node: process.version,
+        firestore: { ok: false },
+        groq: { ok: false },
+    };
+
+    try {
+        const snapshot = await withTimeout(db.collection("projects").limit(1).get(), 8000);
+        report.firestore = { ok: true, sampledDocuments: snapshot.size };
+    } catch (error) {
+        report.success = false;
+        report.firestore = {
+            ok: false,
+            code: classifyError(error).code,
+            message: sanitize(error?.message || error),
+        };
+    }
+
+    if (report.configured) {
+        try {
+            const probe = new ChatGroq({
+                apiKey: process.env.GROQ_API_KEY,
+                model: CHATBOT_MODEL(),
+                temperature: 0,
+                maxTokens: 5,
+            });
+            await withTimeout(probe.invoke([new HumanMessage("ping")]), 10000);
+            report.groq = { ok: true };
+        } catch (error) {
+            report.success = false;
+            report.groq = {
+                ok: false,
+                code: classifyError(error).code,
+                message: sanitize(error?.message || error),
+            };
+        }
+    } else {
+        report.success = false;
+        report.groq = { ok: false, code: "not_configured", message: "GROQ_API_KEY is missing." };
+    }
+
+    report.elapsedMs = Date.now() - started;
+    res.status(report.success ? 200 : 503).json(report);
 });
 
 export default router;
