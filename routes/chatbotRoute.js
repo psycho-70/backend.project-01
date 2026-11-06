@@ -5,6 +5,7 @@ import { db } from "../config/firebase.config.js";
 import {
     CHATBOT_MODEL,
     createPortfolioAgent,
+    GROQ_API_KEY,
     isChatbotConfigured,
     messageToText,
 } from "./chatbot/agent.js";
@@ -49,6 +50,13 @@ const classifyError = (error) => {
             status: 429,
             code: "rate_limit",
             error: "The assistant is handling a lot of requests right now. Please try again in a few seconds.",
+        };
+    }
+    if (/model_not_found|does not exist or you do not have access|model .* not found/i.test(text)) {
+        return {
+            status: 502,
+            code: "model_not_found",
+            error: "The configured Groq model is not available. Check the GROQ_MODEL environment variable (no spaces or line breaks).",
         };
     }
     if (/401|403|invalid api key|invalid_api_key|unauthorized|forbidden/i.test(text)) {
@@ -244,7 +252,7 @@ router.get("/diagnose", async (req, res) => {
     if (report.configured) {
         try {
             const probe = new ChatGroq({
-                apiKey: process.env.GROQ_API_KEY,
+                apiKey: GROQ_API_KEY(),
                 model: CHATBOT_MODEL(),
                 temperature: 0,
                 maxTokens: 5,
