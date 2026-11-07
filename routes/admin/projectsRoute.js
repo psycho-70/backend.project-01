@@ -7,7 +7,6 @@ import {
     now,
     parseTechnologies,
     projectImageUpload,
-    richTextToPlain,
     sanitizeRichText,
     sanitizeRichTextIfHtml,
     uploadImages,
@@ -67,9 +66,9 @@ router.post("/projects", verifyToken, projectImageUpload, async (req, res) => {
         const description = sanitizeRichText(req.body.description);
         const longDescription = sanitizeRichText(req.body.longDescription) || description;
 
-        if (!title || !richTextToPlain(description)) {
-            return res.status(400).json({ error: "title and description are required" });
-        }
+        // if (!title || !richTextToPlain(description)) {
+        //     return res.status(400).json({ error: "title and description are required" });
+        // }
 
         const images = await uploadImages(getProjectImageFiles(req));
 

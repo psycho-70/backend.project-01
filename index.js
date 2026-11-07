@@ -2,6 +2,11 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import contactRoutes from "./routes/contactRoute.js";
+import authRoutes from "./routes/authRoute.js";
+import adminRoutes from "./routes/adminRoute.js";
+import chatRoutes from "./routes/chatRoute.js";
+import chatbotRoutes from "./routes/chatbotRoute.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
