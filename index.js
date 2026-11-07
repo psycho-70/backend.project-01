@@ -2,11 +2,6 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import contactRoutes from "./routes/contactRoute.js";
-import authRoutes from "./routes/authRoute.js";
-import adminRoutes from "./routes/adminRoute.js";
-import chatRoutes from "./routes/chatRoute.js";
-import chatbotRoutes from "./routes/chatbotRoute.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -38,23 +33,62 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use("/api/contacts", contactRoutes);
-app.use("/api/contact", contactRoutes);
-app.use("/api/chat", chatRoutes);
-app.use("/api/chatbot", chatbotRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
+// ───────────────────────── ROUTES ─────────────────────────
+// Loaded dynamically so one failing module (missing dependency, bad runtime
+// version, etc.) surfaces the real error instead of Vercel's opaque
+// FUNCTION_INVOCATION_FAILED page.
+const routeModules = [
+  { label: "contacts", paths: ["/api/contacts", "/api/contact"], load: () => import("./routes/contactRoute.js") },
+  { label: "chat", paths: ["/api/chat"], load: () => import("./routes/chatRoute.js") },
+  { label: "chatbot", paths: ["/api/chatbot"], load: () => import("./routes/chatbotRoute.js") },
+  { label: "auth", paths: ["/api/auth"], load: () => import("./routes/authRoute.js") },
+  { label: "admin", paths: ["/api/admin"], load: () => import("./routes/adminRoute.js") },
+];
 
-// Health check endpoint
-app.get("/", (req, res) => {
-  res.send("Portfolio Backend is running");
+let startupError = null;
+const loadedRoutes = [];
+
+const routesReady = (async () => {
+  for (const route of routeModules) {
+    try {
+      const { default: router } = await route.load();
+      for (const path of route.paths) app.use(path, router);
+      loadedRoutes.push(route.label);
+    } catch (error) {
+      startupError = {
+        module: route.label,
+        code: error?.code || null,
+        message: error?.message || String(error),
+      };
+      console.error(`Failed to load route module "${route.label}":`, error);
+    }
+  }
+
+  // Error handling middleware (keep this AFTER the routes)
+  app.use((err, req, res, next) => {
+    console.error(err.stack || err);
+    res.status(err.status || 500).json({ error: err.message || "Something broke!" });
+  });
+})();
+
+// API requests wait for the async registration and, on failure, report the
+// exact module and error with CORS headers intact.
+app.use("/api", async (req, res, next) => {
+  await routesReady.catch(() => {});
+  if (startupError) {
+    res.set("Cache-Control", "no-store");
+    return res.status(503).json({ ok: false, startupError, loadedRoutes, node: process.version });
+  }
+  next();
 });
 
-// Error handling middleware (keep this AFTER the routes)
-app.use((err, req, res, next) => {
-  console.error(err.stack || err);
-  res.status(err.status || 500).json({ error: err.message || "Something broke!" });
+// Health check endpoint
+app.get("/", async (req, res) => {
+  await routesReady.catch(() => {});
+  if (startupError) {
+    return res.status(500).json({ ok: false, startupError, loadedRoutes, node: process.version });
+  }
+  res.send("Portfolio Backend is running");
 });
 
 // For local development
