@@ -7,10 +7,6 @@ const router = express.Router();
 
 // Temporary: Setup a default admin if none exists
 const setupAdmin = async () => {
-    if (!process.env.ADMIN_PASSWORD) {
-        console.warn("ADMIN_PASSWORD is not set; skipping default admin setup");
-        return;
-    }
     const adminRef = db.collection("admins").doc("main_admin");
     const doc = await adminRef.get();
 
@@ -26,10 +22,7 @@ const setupAdmin = async () => {
     }
 };
 
-// Never let startup bookkeeping crash the serverless function.
-setupAdmin().catch((error) => {
-    console.error("Admin setup skipped:", error?.message || error);
-});
+setupAdmin();
 
 // POST /api/auth/login
 router.post("/login", async (req, res) => {

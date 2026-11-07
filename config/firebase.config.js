@@ -1,77 +1,52 @@
 import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import dotenv from "dotenv";
 
-// Initialization must never throw at import time: in a serverless function a
-// top-level throw fails every route (including CORS preflight), which the
-// browser surfaces as a confusing CORS error. Instead we record the problem
-// and expose it through /api/health and a clear 503 response.
-let dbInstance = null;
-let firebaseError = null;
+// Load environment variables
+dotenv.config();
 
-const trim = (value) => (typeof value === "string" ? value.trim() : "");
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  // Debug: Log all environment variables (remove in production)
+  console.log('All env vars:', Object.keys(process.env));
+  console.log('Firebase env vars:', {
+    PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+    CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+    PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? 'Present' : 'Missing',
+  });
 
-const normalizePrivateKey = (value) =>
-  trim(value)
-    .replace(/^["']|["']$/g, "")
-    .replace(/\\n/g, "\n");
-
-try {
-  if (!admin.apps.length) {
-    const projectId = trim(process.env.FIREBASE_PROJECT_ID);
-    const clientEmail = trim(process.env.FIREBASE_CLIENT_EMAIL);
-    const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
-
-    const missing = [
-      !projectId && "FIREBASE_PROJECT_ID",
-      !clientEmail && "FIREBASE_CLIENT_EMAIL",
-      !privateKey && "FIREBASE_PRIVATE_KEY",
-    ].filter(Boolean);
-
-    if (missing.length > 0) {
-      firebaseError = `Missing environment variable(s): ${missing.join(", ")}`;
-    } else {
-      admin.initializeApp({
-        credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
-        databaseURL: `https://${projectId}-default-rtdb.firebaseio.com`,
-      });
-      console.log("Firebase initialized successfully");
-    }
+  // Check if all required environment variables are present
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
+    console.error('Missing required Firebase environment variables');
+    console.error('Available env vars:', {
+      PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
+      CLIENT_EMAIL: !!process.env.FIREBASE_CLIENT_EMAIL,
+      PRIVATE_KEY: !!process.env.FIREBASE_PRIVATE_KEY,
+    });
+    throw new Error('Firebase configuration is incomplete');
   }
 
-  dbInstance = admin.apps.length ? admin.firestore() : null;
-} catch (error) {
-  firebaseError = error?.message || String(error);
-  console.error("Firebase initialization failed:", firebaseError);
+  try {
+    // Simplified service account configuration
+    const serviceAccount = {
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL?.trim(),
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    };
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`,
+    });
+    
+    console.log('Firebase initialized successfully');
+  } catch (error) {
+    console.error('Firebase initialization error:', error);
+    throw error;
+  }
 }
 
-export const firebaseReady = Boolean(dbInstance);
-export const getFirebaseError = () => firebaseError;
+const db = admin.firestore();
+const contactsCollection = db.collection("contacts");
 
-export const getDb = () => {
-  if (!dbInstance) {
-    throw new Error(`Firebase is unavailable${firebaseError ? `: ${firebaseError}` : ""}`);
-  }
-  return dbInstance;
-};
-
-// Routes import `db` and use it inside request handlers. When initialization
-// failed, touching it throws a descriptive error instead of a TypeError.
-const unavailableDb = new Proxy(
-  {},
-  {
-    get() {
-      throw new Error(`Firebase is unavailable${firebaseError ? `: ${firebaseError}` : ""}`);
-    },
-  }
-);
-
-export const db = dbInstance || unavailableDb;
-
-// Kept as an object so importing modules never touch a missing database at load.
-export const contactsCollection = {
-  add: (data) => getDb().collection("contacts").add(data),
-  get: () => getDb().collection("contacts").get(),
-  doc: (id) => getDb().collection("contacts").doc(id),
-};
-
-export { FieldValue };
+export { db, contactsCollection, FieldValue };
