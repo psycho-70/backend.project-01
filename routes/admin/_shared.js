@@ -1,5 +1,6 @@
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
+import sanitizeHtml from "sanitize-html";
 import { db } from "../../config/firebase.config.js";
 
 // ───────────────────────── CLOUDINARY + MULTER ─────────────────────────
@@ -106,6 +107,67 @@ export const parseJsonOrCsv = (v) => {
 };
 
 export const docsToList = (snapshot) => snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+// Rich text coming from the admin editor is stored as HTML. Only the tags the
+// editor can produce are kept, so a compromised session cannot persist scripts.
+const RICH_TEXT_OPTIONS = {
+    allowedTags: [
+        "p",
+        "div",
+        "br",
+        "strong",
+        "b",
+        "em",
+        "i",
+        "u",
+        "s",
+        "strike",
+        "h2",
+        "h3",
+        "h4",
+        "ul",
+        "ol",
+        "li",
+        "a",
+        "blockquote",
+        "code",
+        "pre",
+        "hr",
+        "span",
+    ],
+    allowedAttributes: { a: ["href", "title", "target", "rel"], span: [] },
+    allowedSchemes: ["http", "https", "mailto"],
+    allowProtocolRelative: false,
+    transformTags: {
+        b: "strong",
+        i: "em",
+        a: (tagName, attribs) => ({
+            tagName: "a",
+            attribs: {
+                ...attribs,
+                target: "_blank",
+                rel: "noopener noreferrer nofollow",
+            },
+        }),
+    },
+};
+
+export const sanitizeRichText = (value) =>
+    typeof value === "string" ? sanitizeHtml(value, RICH_TEXT_OPTIONS).trim() : "";
+
+// Older records may hold raw text or HTML saved before the editor existed.
+// Only HTML-looking values are sanitized so plain text keeps its characters.
+export const sanitizeRichTextIfHtml = (value) => {
+    if (typeof value !== "string") return "";
+    return /<\/?[a-z][\s\S]*>/i.test(value) ? sanitizeRichText(value) : value;
+};
+
+export const richTextToPlain = (value) =>
+    typeof value === "string"
+        ? sanitizeHtml(value, { allowedTags: [], allowedAttributes: {} })
+              .replace(/\s+/g, " ")
+              .trim()
+        : "";
 
 // Sort in memory so documents without an `order` field never disappear
 // (Firestore's orderBy() silently drops documents that lack the field).

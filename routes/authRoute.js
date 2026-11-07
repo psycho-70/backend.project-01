@@ -11,7 +11,7 @@ const setupAdmin = async () => {
     const doc = await adminRef.get();
 
     if (!doc.exists) {
-        const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || "12345678", 10);
+        const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 14);
         await adminRef.set({
             username: process.env.ADMIN_USERNAME || "adminfrk@gmail.com",
             password: hashedPassword,

@@ -11,6 +11,15 @@ import { PORTFOLIO_PROFILE } from "./profile.js";
 
 const norm = (v) => String(v ?? "").toLowerCase();
 
+// Project descriptions are stored as rich-text HTML; the model should only see words.
+const plain = (v) =>
+    String(v ?? "")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/\s+/g, " ")
+        .trim();
+
 const truncate = (value, max) => {
     const text = String(value ?? "");
     return text.length > max ? `${text.slice(0, max)}…` : text;
@@ -20,7 +29,7 @@ const tokenize = (q) => norm(q).split(/\s+/).filter(Boolean);
 
 const matchesQuery = (item, query, fields) => {
     if (!query?.trim()) return true;
-    const haystack = fields.map((field) => norm(item?.[field])).join(" ");
+    const haystack = fields.map((field) => norm(plain(item?.[field]))).join(" ");
     return tokenize(query).every((token) => haystack.includes(token));
 };
 
@@ -83,7 +92,7 @@ export function makePortfolioTools() {
                     title: p.title,
                     category: p.category || "",
                     technologies: (p.technologies || []).slice(0, 8),
-                    description: truncate(p.description, 240),
+                    description: truncate(plain(p.description), 240),
                     link: p.link || "",
                     github: p.github || "",
                 }));
@@ -130,9 +139,9 @@ export function makePortfolioTools() {
                         if (title === q) score = 100;
                         else if (title.includes(q) || q.includes(title)) score = 60;
                         else {
-                            const hay = `${norm(p.title)} ${norm(p.description)} ${norm(p.longDescription)} ${norm(
-                                (p.technologies || []).join(" ")
-                            )}`;
+                            const hay = `${norm(p.title)} ${norm(plain(p.description))} ${norm(
+                                plain(p.longDescription)
+                            )} ${norm((p.technologies || []).join(" "))}`;
                             score = tokens.reduce((sum, t) => (hay.includes(t) ? sum + 10 : sum), 0);
                         }
                         return { p, score };
@@ -154,8 +163,8 @@ export function makePortfolioTools() {
                     project: {
                         title: best.title,
                         category: best.category || "",
-                        description: best.description || "",
-                        longDescription: truncate(best.longDescription || best.description, 1200),
+                        description: plain(best.description),
+                        longDescription: truncate(plain(best.longDescription || best.description), 1200),
                         technologies: best.technologies || [],
                         link: best.link || "",
                         github: best.github || "",
